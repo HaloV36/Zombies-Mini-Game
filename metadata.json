@@ -1,0 +1,6 @@
+{
+  "name": "CoD Zombie Survival 3D",
+  "description": "An action-packed 3D first-person shooter round-based zombie survival game featuring weapons, boarding up barricades, buying walls, mystery box, and perks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
