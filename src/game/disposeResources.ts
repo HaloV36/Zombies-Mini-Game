@@ -6,7 +6,7 @@ export function disposeResources(...roots: (THREE.Object3D | null)[]) {
   const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
   roots.forEach(root => root?.traverse(object => {
-    if (!(object instanceof THREE.Mesh)) return;
+    if (!(object instanceof THREE.Mesh || object instanceof THREE.Points || object instanceof THREE.Line)) return;
     geometries.add(object.geometry);
     (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
   }));

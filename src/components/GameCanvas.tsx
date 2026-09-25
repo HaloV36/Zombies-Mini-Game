@@ -6,10 +6,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { createDetailedPerk, createDetailedZombie } from '../game/modelDetails';
-import { createBrickTexture, createConcreteTexture, createWoodTexture, createSteelTexture } from '../game/environmentTextures';
+import { createWoodTexture, createSteelTexture } from '../game/environmentTextures';
 import { disposeResources } from '../game/disposeResources';
+import { buildCyberpunkDistrict, rooftopUtilityTexture } from '../game/cyberpunkDistrict';
 import { buildWeaponModel } from '../game/weaponModels';
-import { buildSideRoom, pursuitTarget } from '../game/sideRoom';
+import { pursuitTarget } from '../game/sideRoom';
 import { 
   Weapon, 
   PlayerState, 
@@ -281,7 +282,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // WebGL Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -298,194 +299,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     sceneElementsRef.current.barricadeModelsGroup = barricadeGroup;
 
     // --- PROCEDURAL ARCHITECTURAL TEXTURES ---
-    const brickTex = createBrickTexture();
-    const concreteTex = createConcreteTexture();
     const woodTex = createWoodTexture();
     const steelTex = createSteelTexture();
 
-    // --- LIGHT SYSTEMS ---
-    // A slightly stronger, warmer ambient baseline light so that the environment and key items are clearly visible.
-    const ambientLight = new THREE.AmbientLight('#697584', 1.1);
-    scene.add(ambientLight);
-    scene.add(new THREE.HemisphereLight('#c4d6e2', '#655644', 0.85));
-
-    // Beautiful hanging lanterns at each corner of the ceiling
-    const cornerLanternPositions = [
-      { x: -14.6, z: -14.6 },
-      { x: 14.6, z: -14.6 },
-      { x: -14.6, z: 14.6 },
-      { x: 14.6, z: 14.6 }
-    ];
-
-    cornerLanternPositions.forEach((pos) => {
-      const lanternGroup = new THREE.Group();
-      lanternGroup.position.set(pos.x, 12, pos.z); // Ceiling height is 12
-
-      // 1. Hanging Wire/Cord (dark rustic metal rod going downwards)
-      const cordGeom = new THREE.CylinderGeometry(0.015, 0.015, 1.4, 4);
-      const cordMat = new THREE.MeshStandardMaterial({ color: '#111215', roughness: 0.6, metalness: 0.95 });
-      const cord = new THREE.Mesh(cordGeom, cordMat);
-      cord.position.y = -0.7; // intermediate between y=12 and y=10.6
-      lanternGroup.add(cord);
-
-      // 2. Lantern Hood/Cap (dark iron lid)
-      const capGeom = new THREE.CylinderGeometry(0.24, 0.36, 0.15, 6);
-      const capMat = new THREE.MeshStandardMaterial({ color: '#2d3340', roughness: 0.5, metalness: 0.8 });
-      const cap = new THREE.Mesh(capGeom, capMat);
-      cap.position.y = -1.4; // positioned at y=10.6
-      cap.castShadow = true;
-      lanternGroup.add(cap);
-
-      // 3. Emissive Warm Glass Bulb Core
-      const coreGeom = new THREE.CylinderGeometry(0.18, 0.13, 0.5, 6);
-      const coreMat = new THREE.MeshStandardMaterial({
-        color: '#fbbf24',
-        emissive: '#ea580c',
-        emissiveIntensity: 3.2,
-        roughness: 0.1,
-        transparent: true,
-        opacity: 0.9
-      });
-      const glass = new THREE.Mesh(coreGeom, coreMat);
-      glass.position.y = -1.725; // positioned at y=10.275
-      lanternGroup.add(glass);
-
-      // 4. Structural Metal Frame cage (struts)
-      const struts = 4;
-      const strutGeom = new THREE.CylinderGeometry(0.015, 0.015, 0.5, 4);
-      const strutMat = new THREE.MeshStandardMaterial({ color: '#161a22', roughness: 0.5, metalness: 0.9 });
-      for (let i = 0; i < struts; i++) {
-        const angle = (i * Math.PI) / 2;
-        const strut = new THREE.Mesh(strutGeom, strutMat);
-        strut.position.set(Math.cos(angle) * 0.19, -1.725, Math.sin(angle) * 0.19);
-        strut.castShadow = true;
-        lanternGroup.add(strut);
-      }
-
-      // 5. Bottom closing Base Ring
-      const baseGeom = new THREE.CylinderGeometry(0.21, 0.18, 0.08, 6);
-      const baseMesh = new THREE.Mesh(baseGeom, capMat);
-      baseMesh.position.y = -1.985; // positioned at y=10.015
-      baseMesh.castShadow = true;
-      lanternGroup.add(baseMesh);
-
-      // 6. Pointlight inside the lanterns to provide beautiful, dim, organic light
-      // This reaches further across each section of the walls & floor with decay curves
-      const pointLight = new THREE.PointLight('#f59e0b', 3.8, 38, 1.1); // amber-orange glow
-      pointLight.position.set(0, -1.725, 0); // centered at y=10.275 relative to ceiling base
-      pointLight.castShadow = true;
-      pointLight.shadow.mapSize.width = 1024;
-      pointLight.shadow.mapSize.height = 1024;
-      pointLight.shadow.bias = -0.003;
-      lanternGroup.add(pointLight);
-
-      scene.add(lanternGroup);
-    });
-
-    // Soft Moonlight Center Ceiling skylight point glow
-    const moonLight = new THREE.PointLight('#38bdf8', 2.2, 45, 1.0);
-    moonLight.position.set(0, 11, 0);
-    moonLight.castShadow = true;
-    moonLight.shadow.mapSize.width = 1024;
-    moonLight.shadow.mapSize.height = 1024;
-    scene.add(moonLight);
-
-    // Decorative glass skylight on the ceiling at the center
-    const skyGeom = new THREE.BoxGeometry(4, 0.1, 4);
-    const skyMat = new THREE.MeshStandardMaterial({ 
-      color: '#0f172a', 
-      emissive: '#0284c7', 
-      emissiveIntensity: 0.6 
-    });
-    const skylight = new THREE.Mesh(skyGeom, skyMat);
-    skylight.position.set(0, 11.95, 0);
-    scene.add(skylight);
-
-    // Muzzle Flash PointLight (attached near camera weapon later)
+    // Open-air rooftop courts: the architecture supplies both visuals and borders.
+    const district = buildCyberpunkDistrict(scene);
+    stateRef.current.collidables = district.colliders.map(box => box.clone());
+    stateRef.current.zombieCollidables = district.colliders.map(box => box.clone());
     const mFlash = new THREE.PointLight('#f59e0b', 0, 10);
     scene.add(mFlash);
     sceneElementsRef.current.muzzleFlashLight = mFlash;
 
-    // --- BUILD WAREHOUSE ENVIRONMENT LEVELS ---
-    stateRef.current.collidables = [];
-    stateRef.current.zombieCollidables = [];
-
-    // Concrete floor grid
-    const floorGeom = new THREE.PlaneGeometry(32, 32);
-    const floorMat = new THREE.MeshStandardMaterial({ 
-      color: '#44464c', 
-      roughness: 0.85, 
-      metalness: 0.1,
-      map: concreteTex
-    });
-    // repeat floor texture to scale cleanly
-    floorMat.map!.repeat.set(4, 4);
-    const floor = new THREE.Mesh(floorGeom, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    // Ceilings (prevent shooting out)
-    const ceilGeom = new THREE.PlaneGeometry(32, 32);
-    const ceilMat = new THREE.MeshStandardMaterial({ color: '#16171a', roughness: 0.9 });
-    const ceil = new THREE.Mesh(ceilGeom, ceilMat);
-    ceil.rotation.x = Math.PI / 2;
-    ceil.position.y = 12;
-    scene.add(ceil);
-
-    // Warehouse Boundary Outer Brick Walls
-    const createWall = (width: number, height: number, depth: number, pos: THREE.Vector3, rotY: number = 0) => {
-      const wallGeom = new THREE.BoxGeometry(width, height, depth);
-      const wallMat = new THREE.MeshStandardMaterial({ 
-        map: brickTex.clone(),
-        roughness: 0.9, 
-        metalness: 0.05 
-      });
-      wallMat.map!.repeat.set(Math.max(width, depth) / 3, height / 3);
-      const wall = new THREE.Mesh(wallGeom, wallMat);
-      wall.position.copy(pos);
-      wall.rotation.y = rotY;
-      wall.castShadow = true;
-      wall.receiveShadow = true;
-      scene.add(wall);
-
-      // Define collision bounds box
-      wall.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(wall);
-      stateRef.current.collidables.push(box);
-      stateRef.current.zombieCollidables.push(box);
-    };
-
-    // Four boundaries around small arena (perimeter walls 32x32 boundary)
-    const hWallHeight = 12;
-
-    // Back (North) Wall with a Window/Hole cutout at x=0
-    createWall(14.25, hWallHeight, 2, new THREE.Vector3(-8.875, 6, -16)); // Left segment of North wall
-    createWall(14.25, hWallHeight, 2, new THREE.Vector3(8.875, 6, -16));  // Right segment of North wall
-    createWall(3.5, 7, 2, new THREE.Vector3(0, 8.5, -16));                // Top lintel above North window
-
-    // Front (South) Wall with a Window/Hole cutout at x=0
-    createWall(14.25, hWallHeight, 2, new THREE.Vector3(-8.875, 6, 16));  // Left segment of South wall
-    createWall(14.25, hWallHeight, 2, new THREE.Vector3(8.875, 6, 16));   // Right segment of South wall
-    createWall(3.5, 7, 2, new THREE.Vector3(0, 8.5, 16));                 // Top lintel above South window
-
-    // West wall opens into the connected bottling room.
-    buildSideRoom(scene, createWall, floorMat, ceilMat, (mesh) => {
-      mesh.updateMatrixWorld(true);
-      const bounds = new THREE.Box3().setFromObject(mesh);
-      stateRef.current.collidables.push(bounds);
-      stateRef.current.zombieCollidables.push(bounds);
-    });
-
-    // Right (East) Wall (Single solid wall - where Mystery Box is placed)
-    createWall(2, hWallHeight, 32, new THREE.Vector3(16, 6, 0));
-
-    // --- INTERIOR ROOM COMPARTMENTS & PILLARS ---
+    // Rooftop ventilation units retain the original cover footprints.
+    const utilityTexture = rooftopUtilityTexture();
     const createCargoBox = (x: number, z: number, size: {w: number, h: number, d: number}, angle: number = 0) => {
       const crateGeom = new THREE.BoxGeometry(size.w, size.h, size.d);
       const crateMat = new THREE.MeshStandardMaterial({
-        map: steelTex,
-        roughness: 0.7,
+        map: utilityTexture,
+        roughness: 0.65,
         metalness: 0.25
       });
       const crate = new THREE.Mesh(crateGeom, crateMat);
@@ -507,8 +338,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- SETUP CO-D BARRICADE WINDOW WINDOWS (Points of Zombie entry) ---
     const barricades: Barricade[] = [
-      { id: 'b_back', name: 'North Window', position: { x: 0, y: 0.1, z: -15.8 }, yaw: 0, boards: 6, maxBoards: 6, isBreached: false },
-      { id: 'b_front', name: 'South Window', position: { x: 0, y: 0.1, z: 15.8 }, yaw: Math.PI, boards: 6, maxBoards: 6, isBreached: false }
+      { id: 'b_back', name: 'North Service Gate', position: { x: 0, y: 0.1, z: -15.8 }, yaw: 0, boards: 6, maxBoards: 6, isBreached: false },
+      { id: 'b_front', name: 'South Service Gate', position: { x: 0, y: 0.1, z: 15.8 }, yaw: Math.PI, boards: 6, maxBoards: 6, isBreached: false }
     ];
 
     stateRef.current.barricades = barricades;
@@ -571,7 +402,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     // Chalk silhouettes showing gun cost
     const wallBuys: WallBuy[] = [
       { id: 'wb_carbine', weaponId: 'carbine', cost: 1000, position: { x: -8, y: 1.8, z: -15.0 }, yaw: 0 },
-      { id: 'wb_shotgun', weaponId: 'shotgun', cost: 1500, position: { x: -15.0, y: 1.5, z: 4.0 }, yaw: Math.PI / 2 },
+      { id: 'wb_shotgun', weaponId: 'shotgun', cost: 1500, position: { x: -14.7, y: 1.5, z: -10.0 }, yaw: Math.PI / 2 },
       { id: 'wb_thompson', weaponId: 'thompson', cost: 1800, position: { x: 15.0, y: 1.8, z: -4.0 }, yaw: -Math.PI / 2 }
     ];
 
@@ -1215,8 +1046,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           container.removeChild(renderer.domElement);
         }
       }
-      brickTex.dispose();
-      concreteTex.dispose();
       woodTex.dispose();
       steelTex.dispose();
       disposeResources(scene);
@@ -1435,8 +1264,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Filter environment meshes
       const envMeshes: THREE.Object3D[] = [];
-      scene.children.forEach((obj) => {
-        if (obj !== camera && obj.type === 'Mesh') {
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && (obj.parent === scene || obj.userData.solidEnvironment)) {
           envMeshes.push(obj);
         }
       });

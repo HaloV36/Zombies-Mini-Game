@@ -1,23 +1,19 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { buildSideRoom } from '../src/game/sideRoom';
-import { createDetailedPerk } from '../src/game/modelDetails';
-import { createBrickTexture, createConcreteTexture } from '../src/game/environmentTextures';
+import { buildCyberpunkDistrict } from '../src/game/cyberpunkDistrict';
+import { createDetailedPerk, createDetailedZombie } from '../src/game/modelDetails';
 
-const scene=new THREE.Scene();scene.background=new THREE.Color('#08090d');scene.fog=new THREE.FogExp2('#0c0d12',0.026);
-scene.add(new THREE.AmbientLight('#697584',1.1));scene.add(new THREE.HemisphereLight('#c4d6e2','#655644',0.85));
-const brick=createBrickTexture();brick.repeat.set(4,4);
-const concrete=createConcreteTexture();concrete.repeat.set(4,4);
-const floorMat=new THREE.MeshStandardMaterial({color:'#44464c',roughness:0.85,metalness:0.1,map:concrete});
-const wallMat=new THREE.MeshStandardMaterial({map:brick,roughness:0.9,metalness:0.05});
-buildSideRoom(scene,(w,h,d,p)=>{const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wallMat);mesh.position.copy(p);scene.add(mesh);},floorMat,new THREE.MeshStandardMaterial({color:'#16171a',roughness:0.9}));
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(32,32),floorMat);floor.rotation.x=-Math.PI/2;scene.add(floor);
-const machine=createDetailedPerk('speed_cola');machine.position.set(-38.1,0,0);machine.rotation.y=Math.PI/2;scene.add(machine);
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,150);
+const scene = new THREE.Scene();
+const district = buildCyberpunkDistrict(scene);
+for (const [id,x,z] of [['juggernog',-14.1,-4],['speed_cola',-38.1,0]] as const) {
+  const machine=createDetailedPerk(id);machine.position.set(x,0,z);machine.rotation.y=Math.PI/2;scene.add(machine);
+}
+const zombie=createDetailedZombie(0);zombie.position.set(0,0.1,-7);scene.add(zombie);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,1000);
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(2,devicePixelRatio));document.body.appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);
-const views:Record<string,number[]>={door:[-11,2.6,5,-28,2.6,5],inside:[-22,2.4,7,-37,2.4,0],machine:[-33.9,2.4,1,-38.1,2.6,0]};
+const views:Record<string,number[]>={market:[0,2.2,10,0,5,-15],alley:[-10,2.3,5,-29,3,5],terrace:[-22,2.4,7,-37,4,0],edge:[6,2.4,5,13,4,18],bar:[0,2.4,6,-9,3,15],sky:[0,2.4,4,0,38,-5]};
 const view=(v:number[])=>{camera.position.set(v[0],v[1],v[2]);controls.target.set(v[3],v[4],v[5]);controls.update();};
-Object.entries(views).forEach(([id,v])=>document.getElementById(id)!.onclick=()=>view(v));view(views.door);
+Object.entries(views).forEach(([id,v])=>document.getElementById(id)!.onclick=()=>view(v));view(views.market);
 window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-renderer.setAnimationLoop(()=>renderer.render(scene,camera));
+renderer.setAnimationLoop(()=>{renderer.render(scene,camera);document.getElementById('stats')!.textContent=`${renderer.info.render.calls} draw calls / ${Math.round(renderer.info.render.triangles/1000)}k triangles`;});

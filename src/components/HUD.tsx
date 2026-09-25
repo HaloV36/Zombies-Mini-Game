@@ -222,13 +222,13 @@ export const HUD: React.FC<HUDProps> = ({
 
             <div className="space-y-3">
               <span className="text-xs uppercase tracking-[0.4em] text-red-500 font-semibold drop-shadow-[0_0_12px_rgba(239,68,68,0.4)]">
-                STAY ALIVE IN THE WAREHOUSE
+                SURVIVE THE NEON ROOFTOPS
               </span>
               <h1 className="text-5xl md:text-6xl font-extrabold tracking-tighter text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] uppercase">
                 CoD Zombies <span className="text-red-600 block md:inline">3D</span>
               </h1>
               <p className="text-neutral-400 max-w-lg mx-auto text-sm leading-relaxed">
-                A high-fidelity first-person survivor classic shooter remake. Repair window barricades, purchase weapons from walls, play the mystery box, buy Perks, and survive infinite rounds of scaling difficulty.
+                Fight through an open-air rooftop district beneath a neon skyline. Repair service gates, buy weapons and perks, and take the alley to the RE:GEN terrace as the horde grows.
               </p>
             </div>
 
