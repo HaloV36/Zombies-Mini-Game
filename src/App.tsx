@@ -153,7 +153,7 @@ export default function App() {
 
   // Decrement active time left for Insta-kill and Double Points
   useEffect(() => {
-    if (gameStatus !== 'PLAYING' || isPaused) return;
+    if (gameStatus !== 'PLAYING' || isPaused || !isLocked) return;
 
     const timer = setInterval(() => {
       setGameState((prev) => {
@@ -168,7 +168,7 @@ export default function App() {
     }, 100);
 
     return () => clearInterval(timer);
-  }, [gameStatus, isPaused]);
+  }, [gameStatus, isPaused, isLocked]);
 
   // Floating text animator loop
   useEffect(() => {
@@ -206,10 +206,7 @@ export default function App() {
   const handleResumeGame = () => {
     setIsPaused(false);
     // request pointer lock back automatically
-    const canvas = document.querySelector('canvas');
-    if (canvas) {
-      canvas.requestPointerLock();
-    }
+    window.dispatchEvent(new Event('zombies:acquire-aim'));
   };
 
   const handleToggleMute = () => {

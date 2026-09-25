@@ -93,6 +93,17 @@ export const HUD: React.FC<HUDProps> = ({
   isLocked,
   activeFloatingTexts
 }) => {
+  const [aimError, setAimError] = useState(false);
+  useEffect(() => {
+    const onError = () => setAimError(true);
+    const onAcquire = () => setAimError(false);
+    window.addEventListener('zombies:aim-error', onError);
+    window.addEventListener('zombies:acquire-aim', onAcquire);
+    return () => {
+      window.removeEventListener('zombies:aim-error', onError);
+      window.removeEventListener('zombies:acquire-aim', onAcquire);
+    };
+  }, []);
   const [showControls, setShowControls] = useState<boolean>(false);
   const activeWeapon = weapons[playerState.activeWeaponId];
   const secondaryWeapon = playerState.secondaryWeaponId ? weapons[playerState.secondaryWeaponId] : null;
@@ -483,20 +494,24 @@ export const HUD: React.FC<HUDProps> = ({
                     Secure Target Sight Locking
                   </h3>
                   <p className="text-xs text-neutral-400 leading-relaxed">
-                    Click anywhere on the view background to direct your tactical gaze. Utilize your mouse to aim, fire, and turn.
+                    Click Acquire Aim Sight to capture your mouse for unlimited turning. Press Esc to release it.
                   </p>
                 </div>
-                <button 
+                {aimError && (
+                  <p role="alert" className="text-sm text-amber-300">
+                    Mouse capture was blocked. Open http://127.0.0.1:3000/ in a separate
+                    Chrome or Edge window, then click Acquire Aim Sight. The round will
+                    wait until your mouse is captured.
+                  </p>
+                )}
+                <button
                   id="btn-aim-now"
                   onClick={() => {
-                    const canvas = document.querySelector('canvas');
-                    if (canvas) {
-                      canvas.requestPointerLock();
-                    }
+                    window.dispatchEvent(new Event('zombies:acquire-aim'));
                   }}
                   className="px-5 py-2 bg-red-700 hover:bg-red-600 text-xs font-bold uppercase rounded text-white tracking-widest border border-red-500 shadow-lg"
                 >
-                  Acquire Aim Site
+                  Acquire Aim Sight
                 </button>
               </div>
             )}
