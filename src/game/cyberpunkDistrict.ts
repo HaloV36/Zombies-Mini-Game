@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createConcreteTexture, createSteelTexture } from './environmentTextures';
+import { buildCityOutskirts } from './cityOutskirts';
 
 type Size = [number, number, number];
 export type DistrictSolid = { size: Size; position: Size; name: string };
@@ -253,10 +254,17 @@ export function buildCyberpunkDistrict(scene: THREE.Scene) {
     const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(-16,13+i*0.22,-8),new THREE.Vector3(0,10+i*0.22,-5),new THREE.Vector3(16,15+i*0.22,-8)]);
     root.add(new THREE.Mesh(new THREE.TubeGeometry(curve,24,0.028,4,false),trim));
   }
-  // Distant buildings extend below the deck to establish its third-floor elevation.
+  // Support every perimeter building down to street level, including footprints
+  // that project beyond the playable roof slabs.
+  DISTRICT_SOLIDS.filter(solid=>solid.size[1]>10).forEach(({size,position})=>{
+    box(root,[size[0],14.1,size[2]],[position[0],-7.05,position[2]],plaster,true);
+  });
+  buildCityOutskirts({root,box,building,light,utilityTexture:rooftopUtilityTexture()});
+
+  // Distant buildings share the ground elevation of the foreground city blocks.
   for(let i=0;i<26;i++){
     const angle=i/26*Math.PI*2;const radius=65+random()*30;const h=25+random()*65;const w=7+random()*9;
-    const tower=new THREE.Group();tower.position.set(-12+Math.cos(angle)*radius,-14,Math.sin(angle)*radius);tower.lookAt(-12,-14,0);root.add(tower);
+    const tower=new THREE.Group();tower.position.set(-12+Math.cos(angle)*radius,-14.1,Math.sin(angle)*radius);tower.lookAt(-12,-14.1,0);root.add(tower);
     box(tower,[w,h,9],[0,h/2,-4.5],new THREE.MeshStandardMaterial({color:i%2?'#162331':'#211d32',roughness:0.8}));
     windows(tower,w,h,0.01);
     box(tower,[0.14,h,0.06],[-w/2+0.2,h/2,0.04],i%3===0?pink:cyan);
