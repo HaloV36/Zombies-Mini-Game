@@ -8,8 +8,11 @@ import { GameCanvas } from './components/GameCanvas';
 import { HUD } from './components/HUD';
 import { GameState, PlayerState, Weapon } from './types';
 import { audio } from './utils/audio';
+import { PACK_BY_ID } from './game/weaponCatalog';
+import { preloadPackModels } from './game/packModels';
 
 const INITIAL_WEAPONS: Record<string, Weapon> = {
+  ...PACK_BY_ID,
   pistol: {
     id: 'pistol',
     name: 'Colt M1911 Pistol',
@@ -133,6 +136,12 @@ interface FloatingText {
 }
 
 export default function App() {
+  const requestedWeapon=new URLSearchParams(window.location.search).get('testWeapon');
+  const testWeapon=requestedWeapon ? PACK_BY_ID[requestedWeapon] : undefined;
+  const [assetStatus,setAssetStatus]=useState('Loading weapons…');
+  const [assetsReady,setAssetsReady]=useState(false);
+  const loadAssets=()=>{setAssetStatus('Loading weapons…');preloadPackModels(n=>setAssetStatus(`Loading weapons ${n}/40…`)).then(()=>setAssetsReady(true)).catch(()=>setAssetStatus('Weapon download failed. Click to retry.'));};
+  useEffect(loadAssets,[]);
   const [gameStatus, setGameStatus] = useState<'START' | 'PLAYING' | 'GAMEOVER'>('START');
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -187,13 +196,16 @@ export default function App() {
 
   // Start game triggers
   const handleStartGame = () => {
-    setWeapons(JSON.parse(JSON.stringify(INITIAL_WEAPONS)));
+    if(!assetsReady) return;
+    const loadout=JSON.parse(JSON.stringify(INITIAL_WEAPONS));
+    if(testWeapon) loadout[testWeapon.id].isUnlocked=true;
+    setWeapons(loadout);
     setGameState({
       ...INITIAL_GAME_STATE,
       zombiesToSpawn: 10,
       zombiesRemainingInRound: 10
     });
-    setPlayerState(INITIAL_PLAYER_STATE);
+    setPlayerState(testWeapon ? {...INITIAL_PLAYER_STATE,activeWeaponId:testWeapon.id,secondaryWeaponId:'pistol'} : INITIAL_PLAYER_STATE);
     setGameStatus('PLAYING');
     setIsPaused(false);
     audio.playRoundStart();
@@ -260,6 +272,9 @@ export default function App() {
 
   return (
     <div id="cod-zombies-app" className="relative w-screen h-screen bg-black select-none overflow-hidden text-white font-sans">
+      {!assetsReady && <button onClick={loadAssets} className="absolute inset-0 z-[100] bg-black/95 text-cyan-200 text-xl">{assetStatus}</button>}
+      {gameStatus==='START' && <a href="/armory.html" className="absolute top-5 right-5 z-50 rounded border border-cyan-500 bg-black/80 px-5 py-3 text-cyan-200">Browse all 40 new weapons ↗</a>}
+      {gameStatus==='START' && testWeapon && <div className="absolute bottom-5 left-5 z-50 rounded bg-black/90 p-4 text-cyan-200">Weapon test: {testWeapon.name} · Starts equipped <a className="underline ml-4" href="/">Normal loadout</a></div>}
       
       {/* 1. FPS GAME BACKGROUND WEBGL CANVAS */}
       {gameStatus === 'PLAYING' && (

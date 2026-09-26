@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { enrichWeaponModel } from './modelDetails';
+import { buildPackWeapon } from './packModels';
 
 // Shared by gameplay and the model workshop so previews use the actual weapon.
 export function buildWeaponModel(activeId: string, container: THREE.Group, handMagContainer: THREE.Group | null = null) {
+  if(buildPackWeapon(activeId,container)) return {removableMagazineMesh:null,defaultMagPos:new THREE.Vector3()};
   // Materials to share
   const darkSteelMat = new THREE.MeshStandardMaterial({ color: '#242528', roughness: 0.35, metalness: 0.85 });
   const woodMat = new THREE.MeshStandardMaterial({ color: '#582f1b', roughness: 0.95 }); // Dark walnut wood

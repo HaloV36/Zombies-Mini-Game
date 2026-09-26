@@ -1,0 +1,8 @@
+.scope-overlay{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;display:grid;place-items:center}
+.scope-overlay[hidden]{display:none}
+.scope-lens{position:relative;width:78vmin;height:78vmin;border-radius:50%;border:10px solid #171c23;box-shadow:0 0 0 200vmax #020406f5,inset 0 0 30px #0009;overflow:hidden}
+.scope-h,.scope-v{position:absolute;background:#10151a;left:50%;top:50%;transform:translate(-50%,-50%)}
+.scope-h{height:1px;width:100%}.scope-v{width:1px;height:100%}
+.scope-lens b{position:absolute;left:50%;top:50%;width:5px;height:5px;transform:translate(-50%,-50%);border-radius:50%;background:#ea5b43}
+.scope-lens span{position:absolute;bottom:12%;width:100%;text-align:center;color:#a8ddca;font:12px monospace;text-shadow:0 1px 2px black}
+body[data-scoped=true] #hud-crosshair{display:none}

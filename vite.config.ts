@@ -6,6 +6,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    build: { rollupOptions: { input: { game:path.resolve(__dirname,'index.html'), armory:path.resolve(__dirname,'armory.html') } } },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

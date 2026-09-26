@@ -17,6 +17,11 @@ export interface Weapon {
   isUnlocked: boolean;
   cost: number;
   isSpecial?: boolean;
+  modelFile?: string;
+  modelLength?: number;
+  catalogNumber?: number;
+  category?: 'pistol' | 'revolver' | 'shotgun' | 'rifle' | 'smg' | 'sniper';
+  scopeZoom?: number;
 }
 
 export type PerkType = 'juggernog' | 'speed_cola' | 'double_tap' | 'quick_revive';

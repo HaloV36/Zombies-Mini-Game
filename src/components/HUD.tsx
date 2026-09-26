@@ -157,7 +157,7 @@ export const HUD: React.FC<HUDProps> = ({
       
       {/* PERFECTLY CENTERED WEAPON CROSSHAIR SIGHT LINE */}
       {isLocked && !isPaused && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50 flex items-center justify-center w-8 h-8">
+          <div id="hud-crosshair" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50 flex items-center justify-center w-8 h-8">
           {/* Visual Reticle targeting reticle */}
           <div className="w-1.5 h-1.5 bg-white rounded-full opacity-80 shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
           <div className="absolute top-0 left-[15px] w-0.5 h-2 bg-white opacity-50 shadow-[0_0_2px_rgba(255,255,255,0.4)]" />
@@ -559,8 +559,8 @@ export const HUD: React.FC<HUDProps> = ({
                     <div className="text-[10px] text-white/50 uppercase tracking-tighter font-bold mb-1">
                       {playerState.activeWeaponId === 'pistol' ? 'Sidearm' : 'Active Arsenal'}
                     </div>
-                    <div className="text-lg sm:text-xl font-bold italic tracking-wider text-white uppercase max-w-[130px] truncate">
-                      {activeWeapon.name.replace(/Pistol|Rifle|Shotgun|SMG|Zeus Cannon/i, '').trim() || activeWeapon.name}
+                    <div className="text-sm sm:text-base font-bold italic tracking-wide text-white uppercase max-w-[180px] leading-tight">
+                      {activeWeapon.catalogNumber ? `${String(activeWeapon.catalogNumber).padStart(2,'0')} / ${activeWeapon.name}` : activeWeapon.name.replace(/Pistol|Rifle|Shotgun|SMG|Zeus Cannon/i, '').trim() || activeWeapon.name}
                     </div>
                     {secondaryWeapon && (
                       <div className="text-[9px] text-neutral-400 mt-1 uppercase max-w-[130px] truncate font-mono">

@@ -10,6 +10,8 @@ import { createWoodTexture, createSteelTexture } from '../game/environmentTextur
 import { disposeResources } from '../game/disposeResources';
 import { buildCyberpunkDistrict, rooftopUtilityTexture } from '../game/cyberpunkDistrict';
 import { buildWeaponModel } from '../game/weaponModels';
+import { PACK_WEAPONS, aimProfile } from '../game/weaponCatalog';
+import '../game/scope.css';
 import { pursuitTarget } from '../game/sideRoom';
 import { 
   Weapon, 
@@ -57,6 +59,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   onReceivePoints
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const scopeRef = useRef<HTMLDivElement>(null);
   
   // Refs to hold mutable game values running inside ThreeJS render loop at 60Hz
   const stateRef = useRef<{
@@ -159,7 +162,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       currentWeaponId: null,
       rollTimer: 0,
       interactTimer: 0,
-      weaponsList: ['carbine', 'shotgun', 'thompson', 'raygun', 'thundergun']
+      weaponsList: ['carbine', 'shotgun', 'thompson', 'raygun', 'thundergun', ...PACK_WEAPONS.map(w=>w.id)]
     },
     powerUps: [],
     lastShotTime: 0,
@@ -193,6 +196,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Track state changes from React props
   useEffect(() => {
+    if(stateRef.current.activeWeaponId!==playerState.activeWeaponId) {
+      stateRef.current.isReloading=false;
+      stateRef.current.reloadTimeLeft=0;
+      stateRef.current.magazineDroppedForCurrentReload=false;
+    }
     stateRef.current.player.points = playerState.points;
     stateRef.current.player.health = playerState.health;
     stateRef.current.player.maxHealth = playerState.maxHealth;
@@ -782,7 +790,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const handleMouseMove = (e: MouseEvent) => {
       if (!stateRef.current.pointerLocked || isPausedRef.current) return;
       
-      const sensitivity = 0.0016;
+      const s=stateRef.current;
+      const sensitivity = 0.0016*aimProfile(s.weapons[s.activeWeaponId],s.isAiming,s.isReloading).sensitivity;
       stateRef.current.player.yaw -= e.movementX * sensitivity;
       stateRef.current.player.pitch -= e.movementY * sensitivity;
 
@@ -877,6 +886,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
 
       const dt = Math.min(0.08, clock.getDelta()); // clamp to avoid heavy jumps if frames dip
+      const current=stateRef.current;
+      const aim=aimProfile(current.weapons[current.activeWeaponId],current.isAiming,current.isReloading);
+      const showScope=aim.scoped && current.pointerLocked && !isPausedRef.current;
+      if(scopeRef.current) {scopeRef.current.hidden=!showScope;scopeRef.current.dataset.zoom=String(aim.zoom);const label=scopeRef.current.querySelector('span');if(label) label.textContent=`${current.weapons[current.activeWeaponId]?.name} / ${aim.zoom}×`;}
+      document.body.dataset.scoped=String(showScope);
+      if(sceneElementsRef.current.weaponGroup) sceneElementsRef.current.weaponGroup.visible=!showScope;
 
       if (isPausedRef.current || !stateRef.current.pointerLocked || gameStatusRef.current !== 'PLAYING') {
         renderer.render(scene, camera);
@@ -914,12 +929,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Tactical gun positioning & bobbing updates
       if (sceneElementsRef.current.weaponGroup) {
-        const isAiming = stateRef.current.isAiming || false;
+        const isAiming = stateRef.current.isAiming && !stateRef.current.isReloading;
         const s = stateRef.current;
         const p = s.player;
 
         // FOV adjustment for beautiful tactical zoom
-        const targetFov = isAiming ? 55 : 75;
+        const targetFov = aim.fov;
         if (camera && Math.abs(camera.fov - targetFov) > 0.1) {
           camera.fov += (targetFov - camera.fov) * 12 * dt;
           camera.updateProjectionMatrix();
@@ -954,7 +969,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         // Base idle position targets for hip-fire vs ADS
         const baseTargetX = isAiming ? 0.0 : 0.25;
-        const baseTargetY = isAiming ? -0.101 : -0.25;
+        const baseTargetY = isAiming ? (s.weapons[s.activeWeaponId]?.modelFile ? -(sceneElementsRef.current.weaponMeshContainer?.userData.aimHeight ?? .1) : -0.101) : -0.25;
 
         // Calculate custom bobbing offsets based on movement speeds
         let bobX = 0;
@@ -995,7 +1010,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const clampedMouseRotX = Math.max(-0.06, Math.min(0.06, s.sway.rotX));
         const clampedMouseRotY = Math.max(-0.06, Math.min(0.06, s.sway.rotY));
 
-        sceneElementsRef.current.weaponGroup.rotation.x = -clampedMouseRotY * 0.65 + s.recoil.pitch;
+        sceneElementsRef.current.weaponGroup.rotation.x = -clampedMouseRotY * 0.65 + s.recoil.pitch + (s.isReloading && s.weapons[s.activeWeaponId]?.modelFile ? -.45 : 0);
         sceneElementsRef.current.weaponGroup.rotation.y = clampedMouseRotX * 0.8;
 
         // Return weapon Group rotation back to resting naturally, unless currently reloading
@@ -1026,6 +1041,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- DESTRUCT DESCRIPTORS ---
     return () => {
+      delete document.body.dataset.scoped;
       disposed = true;
       lockPending = false;
       window.removeEventListener('zombies:acquire-aim', acquireAim);
@@ -1102,6 +1118,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     else if (activeId === 'shotgun') audio.playShotgun();
     else if (activeId === 'raygun') audio.playRaygun();
     else if (activeId === 'thundergun') audio.playThundergun();
+    else if (activeGun.category==='shotgun' || activeGun.category==='sniper') audio.playShotgun();
+    else if (activeGun.isAutomatic) audio.playThompson();
+    else audio.playPistol();
 
     // Trigger physical upkick & lag recoil on firing
     let pitchKick = 0;
@@ -1258,9 +1277,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       });
 
     } else {
-      // ----------------- TARGET SINGLE RAYCASTING SHOT (REGULAR & RAYGUN) -----------------
+      // Shotguns distribute their listed total damage across eight independent pellets.
+      const pellets=activeGun.category==='shotgun' ? 8 : 1;
+      for(let pellet=0;pellet<pellets;pellet++) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      if(pellets>1) {
+        const spread=s.isAiming ? .024 : .06;
+        const offset=new THREE.Vector3((Math.random()-.5)*spread,(Math.random()-.5)*spread,0).applyQuaternion(camera.quaternion);
+        raycaster.ray.direction.add(offset).normalize();
+      }
 
       // Filter environment meshes
       const envMeshes: THREE.Object3D[] = [];
@@ -1377,7 +1403,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
       // Apply standard ray damage and instant blood/sparks splatters
       if (hitZombie && !hitZombie.isDead) {
-        const dmgScale = isHeadshot ? activeGun.damage * 2.5 : activeGun.damage;
+        const dmgScale = (isHeadshot ? activeGun.damage * 2.5 : activeGun.damage)/pellets;
         const finalDmg = s.gameState.instaKillTimeLeft > 0 ? hitZombie.maxHp : dmgScale;
 
         damageZombieInstance(hitZombie, finalDmg, isHeadshot, finalHitPoint);
@@ -1386,6 +1412,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         spawnDustSparkles(finalHitPoint, '#c1a687', 5);
       } else if (!hitZombie && closestDist < Infinity) {
         spawnDustSparkles(finalHitPoint, '#a1a1aa', 5);
+      }
       }
     }
 
@@ -2123,10 +2150,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const rebuildFloaterWeaponVisual = (gunId: string) => {
     const floater = sceneElementsRef.current.mysteryBoxWeaponFloater;
     if (!floater) return;
+    disposeResources(floater);
 
     // Purge previous floater children
     while (floater.children.length > 0) {
       floater.remove(floater.children[0]);
+    }
+    if(gunId.startsWith('q_')) {
+      const model=new THREE.Group();buildWeaponModel(gunId,model);model.rotation.y=Math.PI/2;
+      const bounds=new THREE.Box3().setFromObject(model);model.position.sub(bounds.getCenter(new THREE.Vector3()));floater.add(model);return;
     }
 
     // Build miniature wire shape of corresponding items
@@ -2883,7 +2915,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       id="fps-game-container" 
       ref={containerRef} 
       className="absolute inset-0 bg-black cursor-crosshair"
-    />
+    ><div ref={scopeRef} className="scope-overlay" hidden><div className="scope-lens"><i className="scope-h"/><i className="scope-v"/><b/><span/></div></div></div>
   );
 };
 export default GameCanvas;
