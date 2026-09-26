@@ -11,6 +11,7 @@ import { disposeResources } from '../game/disposeResources';
 import { buildCyberpunkDistrict, rooftopUtilityTexture } from '../game/cyberpunkDistrict';
 import { buildWeaponModel } from '../game/weaponModels';
 import { PACK_WEAPONS, aimProfile } from '../game/weaponCatalog';
+import { feedbackProfile } from '../game/weaponFeedback';
 import '../game/scope.css';
 import { pursuitTarget } from '../game/sideRoom';
 import { 
@@ -197,6 +198,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Track state changes from React props
   useEffect(() => {
     if(stateRef.current.activeWeaponId!==playerState.activeWeaponId) {
+      audio.cancelReload();
       stateRef.current.isReloading=false;
       stateRef.current.reloadTimeLeft=0;
       stateRef.current.magazineDroppedForCurrentReload=false;
@@ -723,6 +725,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     let lockPending = false;
 
     const releaseAim = () => {
+      audio.stopWeaponAudio();
       lockPending = false;
       stateRef.current.pointerLocked = false;
       stateRef.current.keys = {};
@@ -1003,7 +1006,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         // Incorporate weapon group recoil Z pull-back
         const baseTargetZ = isAiming ? -0.38 : -0.48;
-        const targetZ = baseTargetZ - s.recoil.zOffset;
+        const targetZ = baseTargetZ + s.recoil.zOffset;
         sceneElementsRef.current.weaponGroup.position.z += (targetZ - sceneElementsRef.current.weaponGroup.position.z) * 16 * dt;
 
         // Rotate the weapons to represent high-fidelity flow/inertia on mouse look and strafing movement
@@ -1041,6 +1044,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // --- DESTRUCT DESCRIPTORS ---
     return () => {
+      audio.stopWeaponAudio();
       delete document.body.dataset.scoped;
       disposed = true;
       lockPending = false;
@@ -1118,15 +1122,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     else if (activeId === 'shotgun') audio.playShotgun();
     else if (activeId === 'raygun') audio.playRaygun();
     else if (activeId === 'thundergun') audio.playThundergun();
-    else if (activeGun.category==='shotgun' || activeGun.category==='sniper') audio.playShotgun();
-    else if (activeGun.isAutomatic) audio.playThompson();
-    else audio.playPistol();
+    else audio.playWeaponShot(activeGun);
 
     // Trigger physical upkick & lag recoil on firing
     let pitchKick = 0;
     let verticalKick = 0;
     let backwardKick = 0;
     const rollSide = (Math.random() - 0.5) * 0.04;
+    if(activeGun.modelFile){const profile=feedbackProfile(activeGun);pitchKick=profile.pitch;verticalKick=profile.rise;backwardKick=profile.push;}
 
     if (activeId === 'pistol') {
       pitchKick = 0.16;      // upward rotate
@@ -1161,9 +1164,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       backwardKick *= 0.85;
     }
 
-    s.recoil.pitch += pitchKick;
-    s.recoil.yOffset += verticalKick;
-    s.recoil.zOffset += backwardKick;
+    s.recoil.pitch = Math.min(.45,s.recoil.pitch+pitchKick);
+    s.recoil.yOffset = Math.min(.12,s.recoil.yOffset+verticalKick);
+    s.recoil.zOffset = Math.min(.23,s.recoil.zOffset+backwardKick);
+    // A scoped weapon is hidden behind the optic: show its impulse in the sight view.
+    if(activeGun.scopeZoom && s.isAiming) s.player.pitch=Math.min(Math.PI/2-.04,s.player.pitch+pitchKick*.12);
     s.recoil.rotZ += rollSide;
 
     // Trigger muzzle point flash
@@ -1176,7 +1181,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const scene = sceneElementsRef.current.scene;
     if (!camera || !scene) return;
 
-    const startPos = camera.position;
     const playerPos = s.player.position;
 
     // 1. Calculate camera directional basis vectors
@@ -1189,6 +1193,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       .addScaledVector(forward, 0.45)
       .addScaledVector(right, 0.16)
       .addScaledVector(up, -0.15);
+    const muzzle=sceneElementsRef.current.weaponMeshContainer?.getObjectByName('muzzle');
+    if(muzzle){muzzle.updateWorldMatrix(true,false);muzzle.getWorldPosition(muzzlePos);}
+    // Visible, short-lived flash and light use precisely the same world-space origin.
+    const flash=new THREE.Mesh(new THREE.SphereGeometry(activeGun.category==='shotgun'?.04:.025,6,4),new THREE.MeshBasicMaterial({color:'#ffe5a1',transparent:true,opacity:.9}));
+    flash.position.copy(muzzlePos);scene.add(flash);s.particles.push({mesh:flash,velocity:new THREE.Vector3(),life:0,maxLife:.035,noGravity:true,fadeOpacity:true});
+    const muzzleLight=sceneElementsRef.current.muzzleFlashLight;
+    if(muzzleLight){const local=muzzlePos.clone();muzzleLight.parent?.worldToLocal(local);muzzleLight.position.copy(local);}
 
     if (activeId === 'thundergun') {
       // ----------------- THUNDERGUN ACOUSTIC BLAST (AOI CONE SHOCKWAVE) -----------------
@@ -1304,10 +1315,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
       });
 
+      // Aim from the camera, then trace from the physical barrel to that aim point.
+      // This preserves crosshair convergence while letting nearby cover block the shot.
+      const aimHits=raycaster.intersectObjects([...envMeshes,...activeZombieMeshes],true);
+      const aimPoint=aimHits[0]?.point ?? raycaster.ray.at(150,new THREE.Vector3());
+      const cameraToMuzzle=muzzlePos.clone().sub(camera.position);
+      const obstructionRay=new THREE.Raycaster(camera.position,cameraToMuzzle.clone().normalize(),0,cameraToMuzzle.length());
+      const obstruction=obstructionRay.intersectObjects(envMeshes,false)[0];
+      if(obstruction){raycaster.set(camera.position,cameraToMuzzle.normalize());raycaster.far=obstruction.distance+.001;}
+      else {raycaster.set(muzzlePos,aimPoint.clone().sub(muzzlePos).normalize());raycaster.far=muzzlePos.distanceTo(aimPoint)+.01;}
       const envIntersects = raycaster.intersectObjects(envMeshes, false);
       const zombieIntersects = raycaster.intersectObjects(activeZombieMeshes, true);
 
-      let finalHitPoint = startPos.clone().addScaledVector(forward, 30.0);
+      let finalHitPoint = aimPoint.clone();
       let hitZombie: Zombie | null = null;
       let isHeadshot = false;
       let closestDist = Infinity;
@@ -1383,14 +1403,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       } else {
         // ------------- REGULAR WEAPON BLACK BULLET & SPARK TRAIL -------------
         const bGeom = new THREE.BoxGeometry(0.015, 0.015, 0.06);
-        const bMat = new THREE.MeshBasicMaterial({ color: '#111827' }); // solid charcoal black bullet
+        const bMat = new THREE.MeshBasicMaterial({ color: '#ffd78b' });
         const bMesh = new THREE.Mesh(bGeom, bMat);
         bMesh.position.copy(muzzlePos);
         scene.add(bMesh);
 
         s.bullets.push({
           position: muzzlePos.clone(),
-          direction: forward.clone(),
+          direction: finalHitPoint.clone().sub(muzzlePos).normalize(),
           damage: activeGun.damage,
           mesh: bMesh,
           life: 0,
@@ -1439,7 +1459,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     s.reloadTimeLeft = finalReloadTime;
     s.reloadDuration = finalReloadTime;
-    audio.playReload();
+    audio.playWeaponReload(activeGun,finalReloadTime);
   };
 
   const switchActiveArsenalWeapon = (key: string) => {

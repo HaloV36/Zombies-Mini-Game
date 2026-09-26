@@ -3,7 +3,39 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Weapon } from '../types';
+import { synthesizeShot, synthesizeReload } from '../game/weaponFeedback';
+
 class AudioSynthesizer {
+  private shotBuffers=new Map<string,AudioBuffer>();
+  private reloadSource:AudioBufferSourceNode|null=null;
+  private weaponVoices=new Set<AudioBufferSourceNode>();
+  private weaponBus: DynamicsCompressorNode|null=null;
+
+  public cancelReload() { if(this.reloadSource){try{this.reloadSource.stop();}catch{}this.reloadSource=null;} }
+  public stopWeaponAudio() {this.cancelReload();for(const source of this.weaponVoices){try{source.stop();}catch{}}this.weaponVoices.clear();}
+  private playPCM(samples:Float32Array,reload=false) {
+    if(!this.ctx || this.muted)return;
+    const buffer=this.ctx.createBuffer(1,samples.length,this.ctx.sampleRate);buffer.copyToChannel(samples as Float32Array<ArrayBuffer>,0);
+    return this.playWeaponBuffer(buffer,reload);
+  }
+  private playWeaponBuffer(buffer:AudioBuffer,reload=false) {
+    if(!this.ctx)return;
+    if(!this.weaponBus){this.weaponBus=this.ctx.createDynamicsCompressor();this.weaponBus.threshold.value=-12;this.weaponBus.ratio.value=5;this.weaponBus.connect(this.ctx.destination);}
+    const source=this.ctx.createBufferSource();source.buffer=buffer;source.connect(this.weaponBus);this.weaponVoices.add(source);
+    source.onended=()=>{source.disconnect();this.weaponVoices.delete(source);if(this.reloadSource===source)this.reloadSource=null;};
+    if(reload)this.reloadSource=source;source.start();return source;
+  }
+  public playWeaponShot(w:Weapon) {
+    this.initContext();if(this.muted||!this.ctx)return;
+    let buffer=this.shotBuffers.get(w.id);
+    if(!buffer){const samples=synthesizeShot(w,this.ctx.sampleRate);buffer=this.ctx.createBuffer(1,samples.length,this.ctx.sampleRate);buffer.copyToChannel(samples as Float32Array<ArrayBuffer>,0);this.shotBuffers.set(w.id,buffer);}
+    this.playWeaponBuffer(buffer);
+  }
+  public playWeaponReload(w:Weapon,durationMs:number) {
+    this.cancelReload();this.initContext();if(this.muted||!this.ctx)return;
+    this.playPCM(synthesizeReload(w,durationMs/1000,this.ctx.sampleRate),true);
+  }
   private ctx: AudioContext | null = null;
   private muted: boolean = false;
 
@@ -25,6 +57,7 @@ class AudioSynthesizer {
 
   public toggleMute(): boolean {
     this.muted = !this.muted;
+    if(this.muted)this.stopWeaponAudio();
     return this.muted;
   }
 

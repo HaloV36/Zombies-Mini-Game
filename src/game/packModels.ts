@@ -23,6 +23,9 @@ export function parsePackModel(obj:string, mtl:string, length:number) {
     o.geometry.translate(-center.x,-center.y,-bounds.max.z);
     o.geometry.scale(scale,scale,scale);o.geometry.translate(0,0,.12);
   }});
+  const front=new THREE.Box3().makeEmpty();const tip=.12-length;
+  group.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.attributes.position;for(let i=0;i<positions.count;i++)if(positions.getZ(i)<tip+length*.008)front.expandByPoint(new THREE.Vector3().fromBufferAttribute(positions,i));}});
+  const muzzle=new THREE.Object3D();muzzle.name='muzzle';muzzle.position.copy(front.getCenter(new THREE.Vector3()));muzzle.position.z=tip-.003;group.add(muzzle);
   return group;
 }
 

@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PACK_WEAPONS } from './game/weaponCatalog';
 import { preloadPackModels, buildPackWeapon } from './game/packModels';
 import { disposeResources } from './game/disposeResources';
+import { audio } from './utils/audio';
 
 const status=document.getElementById('status')!;
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(800,300);renderer.setPixelRatio(1);renderer.setClearColor('#141d2a');renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -55,6 +56,8 @@ async function build() {
   const caption=document.createElement('div');const title=document.createElement('h2');title.textContent=`${String(i+1).padStart(2,'0')} / ${w.name}`;const subtitle=document.createElement('p');subtitle.textContent=`${w.category.toUpperCase()} • ${w.clipSize} rounds${w.scopeZoom?` • ${w.scopeZoom}× scope`:''}`;
   const button=document.createElement('button');button.textContent=`Inspect ${w.name}`;button.style.marginTop='12px';button.onclick=()=>show(w.id);caption.append(title,subtitle,button);card.append(img,caption);grid.append(card);
   const testLink=document.createElement('a');testLink.textContent='Test in game';testLink.href=`/?testWeapon=${encodeURIComponent(w.id)}`;testLink.style.cssText='display:inline-block;margin:8px 0 0 8px;font-size:12px';caption.append(testLink);
+  const shot=document.createElement('button');shot.textContent='Hear shot';shot.setAttribute('aria-label',`Hear ${w.name} shot`);shot.style.marginTop='8px';shot.onclick=()=>audio.playWeaponShot(w);
+  const reload=document.createElement('button');reload.textContent='Hear reload';reload.setAttribute('aria-label',`Hear ${w.name} reload`);reload.style.marginLeft='8px';reload.onclick=()=>audio.playWeaponReload(w,w.reloadTime);caption.append(document.createElement('br'),shot,reload);
   scene.remove(model);disposeResources(model);
  });
  ctx.fillStyle='#9aacbe';ctx.font='18px sans-serif';ctx.fillText('Original models by Quaternius · CC0 · Six scoped snipers · No standalone accessories in the loot pool',50,2270);

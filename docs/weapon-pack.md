@@ -13,3 +13,9 @@ Imported models use a whole-weapon reload tilt; they do not have separate animat
 Validation: TypeScript and production builds; 21 tests including source-to-catalog coverage, all 40 geometry imports, scope magnification/reset, resource ownership, and existing map collision checks. Browser inspection verified all 40 gallery models and a sniper loadout in the rooftop scene. Full mouse-captured firing/ADS still requires external Chrome or Edge because the Codex embedded browser rejects pointer lock.
 
 Source: https://quaternius.itch.io/50-lowpoly-guns
+
+## Sound and recoil
+
+Each imported gun has a deterministic synthesized firing signature combining a pressure crack, low-frequency body, filtered tail, and mechanical click. These are generated effects, not firearm recordings. Six weapon families have different reload sequences, fitted to the actual reload duration (including Speed Cola). Muting, switching weapons, and releasing mouse capture cancel the relevant scheduled weapon audio. The armory has **Hear shot** and **Hear reload** buttons for direct comparisons.
+
+All forty guns now kick upward and backward, with heavier impulses on shotguns, revolvers and snipers. Recoil is capped during sustained fire. Scoped shots also kick the sight view. Muzzle markers are derived from the original model's front geometry and transformed with its current pose. Flashes and projectile trails start at those markers and converge toward the camera's aim point, with a second barrel-origin obstruction check for nearby cover.
