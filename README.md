@@ -20,3 +20,5 @@ View your app in AI Studio: https://ai.studio/apps/e7db736e-0589-4881-82ab-227b2
    `npm run dev`
 
 <img width="829" height="490" alt="image" src="https://github.com/user-attachments/assets/42203e34-5166-403b-8a4d-93025adff51c" />
+
+Link to local game: http://127.0.0.1:3000/
